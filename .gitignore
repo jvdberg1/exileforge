@@ -1,0 +1,7 @@
+*.pak
+dist/
+Output/
+Saved/
+*.log
+__pycache__/
+*.pyc
