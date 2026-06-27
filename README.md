@@ -11,6 +11,65 @@ Verified on the Conan Exiles **Enhanced Dev Kit**, UE `5.6.1-366792 (++exiles+re
 
 ---
 
+## What you need (prerequisites)
+
+You need a **Windows PC**. The Dev Kit is Windows-only. For testing, all three roles below can
+run on the same machine.
+
+| Thing | Why you need it | Where to get it |
+|---|---|---|
+| Conan Exiles Dev Kit | Author, cook, and pack the mod. It bundles its own Python and build tool. | Epic Games Store (Section 1) |
+| A Conan Exiles dedicated server | Host the mod so you and players can join. | Your host, or run one locally via SteamCMD app `443030` |
+| Conan Exiles (the game) | Join the server and see the mod in-game. | Steam |
+| Git (optional) | Clone this repo. Or click the green **Code** button on GitHub and **Download ZIP**. | https://git-scm.com |
+
+**You do not need to install Python.** The Dev Kit ships Python here:
+
+```
+<DevKit>\Engine\Binaries\ThirdParty\Python3\Win64\python.exe
+```
+
+Two scripts run as plain Python with that interpreter (`generate_levels.py`, `build_levels.py`).
+The DataTable editor (`edit_datatables.py`) runs **inside** the Dev Kit's editor through
+`UnrealEditor-Cmd.exe -run=pythonscript`, so it needs no separate Python at all.
+
+**You do not need a C++ compiler or Visual Studio** for data-driven mods like the level-cap
+example. C++ only matters for code mods, which the installed-build Dev Kit cannot compile anyway.
+
+---
+
+## How the pieces fit together
+
+There are three roles. On one PC for testing, they are the same machine.
+
+1. **Dev Kit (build).** You edit or add assets inside the modkit project, under your mod folder.
+   Then `RunUAT BuildMod` cooks and packs them into one `<ModName>.pak`.
+2. **Server (host).** You drop that `.pak` into the server's `Mods\` folder and list it in
+   `Mods\modlist.txt`. The server loads it on start.
+3. **Client (play).** You put the same `.pak` in the game's `Mods\` folder and enable it in the
+   in-game mod menu. The client's mods must match the server's to connect.
+
+```
+   [Dev Kit]  edit assets  ->  RunUAT BuildMod  ->  <ModName>.pak
+                                                       |
+                        +------------------------------+------------------------------+
+                        v                                                             v
+   [Server]  Mods\<ModName>.pak + add to modlist.txt + restart      [Client]  Mods\<ModName>.pak + enable in Main Menu > Mods
+                        \                                                             /
+                         +-------------------  client joins server  ----------------+
+```
+
+Each role's folders:
+
+```
+Dev Kit mod source : <DevKit>\UE4\Content\Mods\<ModName>\
+Built pak output   : <DevKit>\UE4\Saved\Mods\<ModName>\Output\<ModName>.pak
+Server mods        : <ConanServer>\ConanSandbox\Mods\           (+ modlist.txt)
+Game client mods   : <Steam>\steamapps\common\Conan Exiles\ConanSandbox\Mods\
+```
+
+---
+
 ## 1. Get the Dev Kit (Epic Games Store)
 
 The Dev Kit is free, but it only ships through the Epic Games Store.
@@ -129,6 +188,27 @@ Stock Unreal Python creates and edits assets and DataTables. It cannot author Bl
 event-graph node logic. Chat commands, UMG, and similar logic still need the editor GUI, because
 the installed-build Dev Kit cannot compile a C++ plugin either. Data-driven mods automate end to
 end; logic mods do not.
+
+### Run the standalone helper scripts
+
+`generate_levels.py` and `build_levels.py` run as plain Python. Use the Dev Kit's bundled
+interpreter so you install nothing:
+
+```bat
+"<DevKit>\Engine\Binaries\ThirdParty\Python3\Win64\python.exe" tools\generate_levels.py
+```
+
+### Configure the scripts first
+
+The example scripts carry hardcoded paths at the top that match the original project. Open each
+in a text editor (Notepad works) and set them to your machine before running:
+
+- **`tools/edit_datatables.py`**: `MOD_NAME` (your mod), `EXPORT_DIR` (any scratch folder, e.g.
+  `C:\conan_work`), and the CSV paths in the `OVR`/`TABLES` lists (point them at that scratch folder).
+- **`tools/build_levels.py`**: `EXP` (the same scratch folder).
+- **`tools/generate_levels.py`**: `MAX_LEVEL`, `SERVER_CAP`, `BASE_L60_XP` (tuning only).
+
+These are plain text edits. You do not need to know Python to change a path in quotes.
 
 ---
 
