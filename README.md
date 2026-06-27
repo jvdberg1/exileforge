@@ -29,9 +29,10 @@ run on the same machine.
 <DevKit>\Engine\Binaries\ThirdParty\Python3\Win64\python.exe
 ```
 
-Two scripts run as plain Python with that interpreter (`generate_levels.py`, `build_levels.py`).
-The DataTable editor (`edit_datatables.py`) runs **inside** the Dev Kit's editor through
-`UnrealEditor-Cmd.exe -run=pythonscript`, so it needs no separate Python at all.
+One script runs as plain Python with that interpreter (`ef_levels.py`). The DataTable editor
+(`ef_editor.py`) runs **inside** the Dev Kit's editor through `UnrealEditor-Cmd.exe
+-run=pythonscript`, so it needs no separate Python at all. The orchestrator `exileforge.ps1`
+calls both for you (see Quick start), so you normally run neither by hand.
 
 **You do not need a C++ compiler or Visual Studio** for data-driven mods like the level-cap
 example. C++ only matters for code mods, which the installed-build Dev Kit cannot compile anyway.
@@ -67,6 +68,31 @@ Built pak output   : <DevKit>\UE4\Saved\Mods\<ModName>\Output\<ModName>.pak
 Server mods        : <ConanServer>\ConanSandbox\Mods\           (+ modlist.txt)
 Game client mods   : <Steam>\steamapps\common\Conan Exiles\ConanSandbox\Mods\
 ```
+
+---
+
+## Quick start (one command)
+
+Once the Dev Kit is installed (Section 1), `exileforge.ps1` builds the whole level-cap mod for
+you. Open PowerShell in this repo and run:
+
+```powershell
+.\tools\exileforge.ps1 -DevKit "C:\ConanDevKit" -Mod "MyLevelMod" -Cap 120
+```
+
+That one command creates the mod if it does not exist, dumps the vanilla progression tables,
+generates the extended rows, writes the override tables into the mod, and cooks and packs the
+`.pak`. You edit no `.py` files and open no editor window. The result:
+
+```
+<DevKit>\UE4\Saved\Mods\MyLevelMod\Output\MyLevelMod.pak
+```
+
+Then install it: copy that `.pak` to the server's `Mods\` and add `*MyLevelMod.pak` to
+`Mods\modlist.txt`, and copy the same `.pak` to the client's `Mods\` and enable it in
+**Main Menu > Mods** (Section 7, step 5).
+
+The sections below explain each piece, in case you want to build something other than a level cap.
 
 ---
 
@@ -173,10 +199,10 @@ Run Python inside the Dev Kit without a window:
 
 ```bat
 "<DevKit>\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "<DevKit>\UE4\ConanSandbox.uproject" ^
-    -run=pythonscript -script="edit_datatables.py" -unattended -nopause -nosplash -stdout
+    -run=pythonscript -script="ef_editor.py" -unattended -nopause -nosplash -stdout
 ```
 
-The functions you need (see `tools/edit_datatables.py`):
+The functions you need (see `tools/ef_editor.py`):
 
 - `unreal.DataTableFunctionLibrary.export_data_table_to_csv_file(table, path)` dumps a table to CSV.
 - `unreal.EditorAssetLibrary.duplicate_asset(core, "/Game/Mods/<Mod>/Content/<core path>")` copies a
@@ -189,41 +215,40 @@ event-graph node logic. Chat commands, UMG, and similar logic still need the edi
 the installed-build Dev Kit cannot compile a C++ plugin either. Data-driven mods automate end to
 end; logic mods do not.
 
-### Run the standalone helper scripts
+### The scripts need no editing
 
-`generate_levels.py` and `build_levels.py` run as plain Python. Use the Dev Kit's bundled
-interpreter so you install nothing:
+Every script takes its settings as arguments or environment variables. Nothing inside them is
+hardcoded to one machine, so you never open them in an editor:
+
+- **`tools/exileforge.ps1`** (the orchestrator): pass `-DevKit`, `-Mod`, and `-Cap`.
+- **`tools/ef_editor.py`** (runs in the editor): reads `EF_MOD`, `EF_WORKDIR`, `EF_MODE`, which the
+  orchestrator sets for you. To run it by hand, set those three variables first.
+- **`tools/ef_levels.py`** (plain Python): `python ef_levels.py <workdir> <cap>`. Run it with the
+  Dev Kit's bundled interpreter so you install nothing:
 
 ```bat
-"<DevKit>\Engine\Binaries\ThirdParty\Python3\Win64\python.exe" tools\generate_levels.py
+"<DevKit>\Engine\Binaries\ThirdParty\Python3\Win64\python.exe" tools\ef_levels.py C:\conan_work 120
 ```
-
-### Configure the scripts first
-
-The example scripts carry hardcoded paths at the top that match the original project. Open each
-in a text editor (Notepad works) and set them to your machine before running:
-
-- **`tools/edit_datatables.py`**: `MOD_NAME` (your mod), `EXPORT_DIR` (any scratch folder, e.g.
-  `C:\conan_work`), and the CSV paths in the `OVR`/`TABLES` lists (point them at that scratch folder).
-- **`tools/build_levels.py`**: `EXP` (the same scratch folder).
-- **`tools/generate_levels.py`**: `MAX_LEVEL`, `SERVER_CAP`, `BASE_L60_XP` (tuning only).
-
-These are plain text edits. You do not need to know Python to change a path in quotes.
 
 ---
 
 ## 7. Worked example: level cap 60 to 120
 
-See [`examples/level-cap/`](examples/level-cap/). Steps in brief:
+See [`examples/level-cap/`](examples/level-cap/). The Quick start runs all of this in one
+command. Under the hood `exileforge.ps1` does these steps:
 
-1. `tools/generate_levels.py` writes the XP, attribute, and feat rows past 60, calibrated to vanilla.
-2. `tools/edit_datatables.py` duplicates the three core progression tables into the mod overlay and
-   fills them to 120 rows.
-3. Write `CookInfo.ini` listing the three tables.
-4. Run the `RunUAT BuildMod` command from section 3.
-5. Copy the `.pak` to the server's `Mods/`, add `*<ModName>.pak` to `Mods/modlist.txt`, restart.
-   Copy the same `.pak` to the client's `...\Conan Exiles\ConanSandbox\Mods\` and enable it in
-   **Main Menu > Mods** in the same order as the server.
+1. Creates the mod scaffold and `modinfo.json` if the mod does not exist yet.
+2. `ef_editor.py` (mode `dump`) exports the three vanilla progression tables to a scratch folder.
+3. `ef_levels.py` writes the XP, attribute, and feat rows past 60, calibrated to vanilla.
+4. `ef_editor.py` (mode `override`) duplicates the three core tables into the mod overlay and fills
+   them to your cap.
+5. Writes `CookInfo.ini` listing the three tables, then runs the `RunUAT BuildMod` command from
+   section 3.
+
+Then install it: copy the `.pak` to the server's `Mods/`, add `*<ModName>.pak` to
+`Mods/modlist.txt`, restart. Copy the same `.pak` to the client's
+`...\Conan Exiles\ConanSandbox\Mods\` and enable it in **Main Menu > Mods** in the same order as
+the server.
 
 Characters can now reach 120. Remove the mod and any character above 60 resets to 60, which is
 standard Conan behaviour for level mods.

@@ -1,15 +1,24 @@
 # Example: raise the level cap 60 → 120
 
-A complete, working example of a **DataTable-override** mod built fully headless — no GUI,
+A complete, working example of a **DataTable-override** mod built fully headless. No GUI,
 no `ModController`, no Blueprint. It replaces the three base progression tables with extended
 120-level versions.
 
 Replace `ExampleMod` below with your own mod name throughout.
 
+## The one-command way
+All five steps below are done for you by the orchestrator:
+```powershell
+.\tools\exileforge.ps1 -DevKit "C:\ConanDevKit" -Mod "ExampleMod" -Cap 120
+```
+The rest of this page explains what that command does, in case you want to change the curve or
+build a different override.
+
 ## 1. Generate the level rows
-`tools/generate_levels.py` writes `data/levels.csv` (levels 61→N). The XP curve is a smooth
-continuation of vanilla — calibrate `BASE_L60_XP` to the real value you get by exporting the
-vanilla `DT_ExperienceSystemLevel` first (the `inspect`/`dump` modes in `edit_datatables.py` do this).
+`tools/ef_levels.py` reads the vanilla CSV dumps and writes the extended `*.ext.csv` rows
+(levels 61→N). The XP curve is a smooth continuation of vanilla: it keeps vanilla's near-constant
+second difference in the per-level delta, so no value needs hand-calibrating. The dumps come from
+`ef_editor.py` mode `dump`, which exports the live vanilla tables first.
 
 The three vanilla tables (UE 5.6 / Enhanced):
 | Purpose | Asset | Row struct | Rows (vanilla) |
@@ -21,7 +30,7 @@ The three vanilla tables (UE 5.6 / Enhanced):
 > XP table is **cumulative** (`LevelStart`/`LevelEnd`). Attribute table is **0-indexed**.
 
 ## 2. Create the override tables (headless Unreal Python)
-`edit_datatables.py` mode `override` duplicates each core table into the mod's `Content`
+`ef_editor.py` mode `override` duplicates each core table into the mod's `Content`
 overlay at the **core relative path** and fills it to 120 rows:
 ```
 /Game/Mods/ExampleMod/Content/Systems/Progression/DT_ExperienceSystemLevel
