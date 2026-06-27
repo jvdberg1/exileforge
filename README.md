@@ -1,55 +1,90 @@
-# ExileForge — Headless Mod Kit for Conan Exiles Enhanced (UE5)
+# ExileForge
 
-Build Conan Exiles **Enhanced** (UE 5.6) mods **entirely from the command line** — cook
-and package a `.pak` with **no GUI clicking** — plus the hard‑won gotchas that the official
-docs don't make clear. This came out of a full day of dead‑ends; the goal here is that nobody
-else loses that day.
+A command-line workflow for building Conan Exiles **Enhanced** (UE 5.6) mods. You cook and
+package a `.pak` without opening the editor UI. This repo also documents the setup steps and
+failure modes that the official docs skip.
 
-Worked example included: raising the **player level cap 60 → 120** by overriding the game's
+Worked example: raising the player level cap from 60 to 120 by overriding the game's
 progression DataTables.
 
-> Verified on: Conan Exiles **Enhanced Dev Kit**, UE `5.6.1-366792 (++exiles+release)`, Windows.
+Verified on the Conan Exiles **Enhanced Dev Kit**, UE `5.6.1-366792 (++exiles+release)`, Windows.
 
 ---
 
-## TL;DR — the three things that actually matter
+## 1. Get the Dev Kit (Epic Games Store)
 
-1. **The Dev Kit modding UI only appears if you launch with `-ModDevKit`.**
-   Launch via `<DevKit>\RunDevKit.bat` (which is just
-   `UnrealEditor.exe <DevKit>\UE4\ConanSandbox.uproject -ModDevKit`) or from the Epic launcher.
-   If you start the bare `UnrealEditor.exe`, **there is no mod menu/toolbar at all** — the
-   "Conan Exiles DevKit" window (under the **Window** menu) is simply absent. Hours vanish here.
+The Dev Kit is free, but it only ships through the Epic Games Store.
 
-2. **You can build the whole mod headless with one command** (no editor window):
-   ```bat
-   "<DevKit>\Engine\Build\BatchFiles\RunUAT.bat" -NoCompile BuildMod ^
-       -Mod=<ModName> ^
-       -Project="<DevKit>/UE4/ConanSandbox.uproject" ^
-       -Cook -Pak -Compress ^
-       -ScriptDir="<DevKit>/UE4/"
-   ```
-   `BuildMod` cooks (Windows + WindowsServer + LinuxServer) **and** packs in one call (~8 min).
-   - **`-ScriptDir=<DevKit>/UE4/` is mandatory.** Without it: `Failed to find command BuildMod`.
-   - It reads the asset list from `<DevKit>\UE4\Content\Mods\<ModName>\Local\CookInfo.ini`
-     (the GUI's *"Choose Assets For Cook"*). You can write that file yourself (format below).
-   - Output: `<DevKit>\UE4\Saved\Mods\<ModName>\Output\<ModName>.pak`
-     (per‑platform IoStore `.utoc/.ucas` + `modinfo.json`).
-   - Source of truth for the command: `<DevKit>\UE4\Build\ModDevKit.Automation\BuildMod.cs`.
+1. **Make an Epic Games account** at https://www.epicgames.com if you do not have one.
+2. **Install the Epic Games Launcher**: https://store.epicgames.com/en-US/download . Run it and sign in.
+3. **Find the Dev Kit.** In the launcher, open **Store** and search `Conan Exiles Dev Kit`
+   (it also lists as *Conan Exiles Enhanced Dev Kit*). Confirm the price reads **Free**.
+4. **Claim it.** Click **Get**, then complete the free checkout. It now sits in your **Library**.
+5. **Install it.** Open **Library** (check a **Modding** tab/filter if it is not in the main grid),
+   click **Install**, and set a **short install path** such as `C:\ConanDevKit`. Long paths break
+   cooks later. Budget around **160 GB** of disk; the download is large.
+6. **First launch.** The first start compiles shaders and can take 30 to 60 minutes. Let it finish.
+   Dismiss any "new version" or message-of-the-day popups.
 
-3. **To replace a base‑game asset (e.g. a DataTable), use the mod's `Content` overlay.**
-   A mod's `Content` folder is an overlay of `/Game`. An asset authored at
-   `/Game/Mods/<ModName>/Content/Systems/Progression/DT_ExperienceSystemLevel`
-   **cooks to** `…/ConanSandbox/Content/Systems/Progression/DT_ExperienceSystemLevel`
-   (the `Mods/<ModName>/Content/` prefix is stripped) — i.e. package
-   `/Game/Systems/Progression/DT_ExperienceSystemLevel`, which **overrides the base table**
-   when the mod pak mounts. **No `ModController` / `MergeDataTables` Blueprint needed** for a
-   full‑table replace.
+Owning the game on Steam is fine. The Dev Kit is a separate Epic product and needs no Steam link.
+
+After install, your Dev Kit root (referred to below as `<DevKit>`) contains:
+
+```
+<DevKit>\RunDevKit.bat                                  launcher (passes -ModDevKit)
+<DevKit>\Engine\Binaries\Win64\UnrealEditor.exe        the editor
+<DevKit>\Engine\Binaries\Win64\UnrealEditor-Cmd.exe    headless editor / Python host
+<DevKit>\Engine\Build\BatchFiles\RunUAT.bat            the build tool
+<DevKit>\UE4\ConanSandbox.uproject                     the modkit project
+<DevKit>\UE4\Content\Mods\<YourMod>\                   your mod lives here
+```
 
 ---
 
-## `CookInfo.ini` format
+## 2. Launch the Dev Kit so the mod tools appear
 
-`<DevKit>\UE4\Content\Mods\<ModName>\Local\CookInfo.ini` — paths are **relative to `UE4/Content/`**:
+The modding UI only loads when the editor starts with the **`-ModDevKit`** flag. Launch it one
+of two ways:
+
+- Double-click **`<DevKit>\RunDevKit.bat`**, or
+- Click **Launch** on the Dev Kit in the Epic Games Launcher.
+
+Both run `UnrealEditor.exe <DevKit>\UE4\ConanSandbox.uproject -ModDevKit`. The mod window then
+appears under the editor's **Window** menu as **Conan Exiles DevKit**.
+
+Starting the bare `UnrealEditor.exe` skips the flag, and then no mod menu, toolbar, or window
+exists anywhere. If you cannot find the mod tools, this is almost always the cause.
+
+---
+
+## 3. Build a mod headless (one command)
+
+```bat
+"<DevKit>\Engine\Build\BatchFiles\RunUAT.bat" -NoCompile BuildMod ^
+    -Mod=<ModName> ^
+    -Project="<DevKit>/UE4/ConanSandbox.uproject" ^
+    -Cook -Pak -Compress ^
+    -ScriptDir="<DevKit>/UE4/"
+```
+
+`BuildMod` cooks three platforms (Windows, WindowsServer, LinuxServer) and packs the `.pak` in
+one run. The cook takes about 8 minutes.
+
+- **Include `-ScriptDir=<DevKit>/UE4/`.** Omit it and UAT reports `Failed to find command BuildMod`.
+- `BuildMod` reads the asset list from `<DevKit>\UE4\Content\Mods\<ModName>\Local\CookInfo.ini`
+  (the editor writes this from **Choose Assets For Cook**; you can also write it by hand, format below).
+- Output: `<DevKit>\UE4\Saved\Mods\<ModName>\Output\<ModName>.pak` (per-platform IoStore
+  `.utoc`/`.ucas` plus `modinfo.json`).
+- The command's source spec: `<DevKit>\UE4\Build\ModDevKit.Automation\BuildMod.cs`.
+
+To change a mod later, edit its assets, rerun this one command, then redeploy. No editor needed.
+
+---
+
+## 4. CookInfo.ini format
+
+Path: `<DevKit>\UE4\Content\Mods\<ModName>\Local\CookInfo.ini`. Each `FilesToCook` path is
+relative to `UE4/Content/`:
 
 ```ini
 [/CookInfo]
@@ -60,73 +95,87 @@ FilesToCook=Mods/<ModName>/Content/Systems/Progression/DT_FeatsPerLevel.uasset
 
 ---
 
-## Editing DataTables headlessly (Unreal Python)
+## 5. Replace a base-game DataTable (the overlay override)
 
-Run Python inside the Dev Kit headlessly:
+A mod's `Content` folder overlays `/Game`. An asset you author at
+`/Game/Mods/<ModName>/Content/Systems/Progression/DT_ExperienceSystemLevel` cooks to
+`.../ConanSandbox/Content/Systems/Progression/DT_ExperienceSystemLevel`. The cooker strips the
+`Mods/<ModName>/Content/` prefix, so the package becomes `/Game/Systems/Progression/DT_ExperienceSystemLevel`
+and replaces the base table when the pak mounts.
+
+A full-table replace needs no `ModController` and no Blueprint. Duplicate the core table into the
+mod overlay at the matching path, fill it with new rows, and cook.
+
+---
+
+## 6. Edit DataTables headless (Unreal Python)
+
+Run Python inside the Dev Kit without a window:
+
 ```bat
 "<DevKit>\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "<DevKit>\UE4\ConanSandbox.uproject" ^
     -run=pythonscript -script="edit_datatables.py" -unattended -nopause -nosplash -stdout
 ```
-Key API (see `tools/edit_datatables.py`):
-- `unreal.DataTableFunctionLibrary.export_data_table_to_csv_file(table, path)` — dump a table.
-- `unreal.EditorAssetLibrary.duplicate_asset(core, "/Game/Mods/<Mod>/Content/<core path>")` —
-  copy a core table into the mod overlay (keeps the right row struct).
-- `unreal.DataTableFunctionLibrary.fill_data_table_from_csv_string(table, csv)` — write rows.
-- `unreal.EditorAssetLibrary.save_asset(path)`.
 
-> Note: stock Unreal Python can create/edit **assets and DataTables**, but it **cannot author
-> Blueprint event‑graph node logic** — that still needs the editor GUI (or a C++ plugin, which
-> the installed‑build Dev Kit can't compile). So data‑driven mods automate cleanly; logic mods
-> (chat commands, etc.) do not.
+The functions you need (see `tools/edit_datatables.py`):
 
----
+- `unreal.DataTableFunctionLibrary.export_data_table_to_csv_file(table, path)` dumps a table to CSV.
+- `unreal.EditorAssetLibrary.duplicate_asset(core, "/Game/Mods/<Mod>/Content/<core path>")` copies a
+  core table into the mod overlay and keeps its row struct.
+- `unreal.DataTableFunctionLibrary.fill_data_table_from_csv_string(table, csv)` writes the rows.
+- `unreal.EditorAssetLibrary.save_asset(path)` saves.
 
-## Worked example: level cap 60 → 120
-
-See [`examples/level-cap/`](examples/level-cap/). In short:
-1. `tools/generate_levels.py` builds the XP/attribute/feat rows past 60 (calibrated to vanilla).
-2. `tools/edit_datatables.py` (mode `override`) duplicates the 3 core progression tables into
-   `/Game/Mods/<Mod>/Content/Systems/Progression/` and fills them to 120 rows.
-3. Write `CookInfo.ini` listing those 3 assets.
-4. Run the `RunUAT BuildMod` command above.
-5. Drop the `.pak` in the server's `Mods/` + add `*<ModName>.pak` to `modlist.txt`, restart.
-   Put the same pak in the client's `…\Conan Exiles\ConanSandbox\Mods\` and enable it.
-
-Cap is now 120 (the 120‑row table overrides the base 60‑row one). Removing the mod resets
-characters above 60 back to 60 (normal Conan behaviour for level mods).
+Stock Unreal Python creates and edits assets and DataTables. It cannot author Blueprint
+event-graph node logic. Chat commands, UMG, and similar logic still need the editor GUI, because
+the installed-build Dev Kit cannot compile a C++ plugin either. Data-driven mods automate end to
+end; logic mods do not.
 
 ---
 
-## Gotchas that cost the day (so they don't cost yours)
+## 7. Worked example: level cap 60 to 120
 
-- **No mod UI?** You launched without `-ModDevKit`. Use `RunDevKit.bat`.
-- **`Failed to find command BuildMod`** → add `-ScriptDir=<DevKit>/UE4/`.
-- **`Unable to find package for cooking` / `ExitCode 28`** → the asset isn't inside the mod's
-  `Content` folder, or `CookInfo.ini` points at the wrong path. Assets **must** live under
-  `Mods/<ModName>/Content/…`.
-- **Mod loads but `LogModController: Invalid class` and nothing changes** → you tried a
-  `ModController` that wasn't accepted. For a straight table replace, skip the controller and
-  use the **overlay override** instead (above).
-- **Editor shows a mod folder as empty after editing assets headlessly** → asset‑registry
-  desync; verify with a fresh **headless** load, don't trust the running GUI. Re‑launch.
-- **`.uasset` can't be dragged/imported via File Explorer** — that's not how it works; assets
-  belong on disk under the project's `Content/` and the registry scans them.
+See [`examples/level-cap/`](examples/level-cap/). Steps in brief:
+
+1. `tools/generate_levels.py` writes the XP, attribute, and feat rows past 60, calibrated to vanilla.
+2. `tools/edit_datatables.py` duplicates the three core progression tables into the mod overlay and
+   fills them to 120 rows.
+3. Write `CookInfo.ini` listing the three tables.
+4. Run the `RunUAT BuildMod` command from section 3.
+5. Copy the `.pak` to the server's `Mods/`, add `*<ModName>.pak` to `Mods/modlist.txt`, restart.
+   Copy the same `.pak` to the client's `...\Conan Exiles\ConanSandbox\Mods\` and enable it in
+   **Main Menu > Mods** in the same order as the server.
+
+Characters can now reach 120. Remove the mod and any character above 60 resets to 60, which is
+standard Conan behaviour for level mods.
 
 ---
 
-## What automates and what doesn't
+## 8. Failure modes and fixes
 
-| Task | Headless / CLI? |
+| Symptom | Cause and fix |
 |---|---|
-| Edit/replace DataTables | ✅ Unreal Python + overlay override |
-| Cook + package the `.pak` | ✅ `RunUAT BuildMod` |
-| Deploy to a server (`scp` + `modlist.txt` + restart) | ✅ |
-| Build Blueprint **node graphs** (chat commands, UMG) | ❌ editor GUI (or C++) |
+| No mod menu, toolbar, or window | Launched without `-ModDevKit`. Use `RunDevKit.bat`. |
+| `Failed to find command BuildMod` | Add `-ScriptDir=<DevKit>/UE4/`. |
+| `Unable to find package for cooking` / `ExitCode 28` | Asset is outside the mod's `Content` folder, or `CookInfo.ini` points at the wrong path. Keep assets under `Mods/<ModName>/Content/`. |
+| Mod mounts, `LogModController: Invalid class`, nothing changes | A `ModController` was rejected. For a table replace, drop the controller and use the overlay override (section 5). |
+| A mod folder shows empty after you edit assets headless | Asset-registry desync. Verify with a fresh headless load, then relaunch the editor. |
+| `.uasset` will not import via drag-and-drop in Explorer | That is not the workflow. Assets sit under the project's `Content/` and the registry scans them. |
+
+---
+
+## 9. What automates and what does not
+
+| Task | Headless? |
+|---|---|
+| Edit or replace DataTables | Yes, via Unreal Python and the overlay override |
+| Cook and package the `.pak` | Yes, via `RunUAT BuildMod` |
+| Deploy to a server (`scp`, `modlist.txt`, restart) | Yes |
+| Build Blueprint node graphs (chat commands, UMG) | No. Editor GUI or C++ |
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Community contributions welcome.
+MIT. See [LICENSE](LICENSE). Contributions welcome.
 
-*Not affiliated with Funcom / Inflexion Games. "Conan Exiles" is their trademark.*
+Not affiliated with Funcom or Inflexion Games. "Conan Exiles" is their trademark.
