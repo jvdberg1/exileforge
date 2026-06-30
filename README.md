@@ -4,10 +4,15 @@ A command-line workflow for building Conan Exiles **Enhanced** (UE 5.6) mods. Yo
 package a `.pak` without opening the editor UI. This repo also documents the setup steps and
 failure modes that the official docs skip.
 
-Worked example: raising the player level cap from 60 to 120 by overriding the game's
+Worked example: raising the player level cap 60 -> 120 by overriding the game's
 progression DataTables.
 
 Verified on the Conan Exiles **Enhanced Dev Kit**, UE `5.6.1-366792 (++exiles+release)`, Windows.
+
+> Building Blueprint **logic** mods (custom items, abilities, recall, GUI hooks)? See the sibling
+> repo [KismetForge](https://github.com/jvdberg1/kismetforge): same headless cook + deploy, plus
+> generating Blueprint graphs as T3D you paste once. ExileForge stays focused on headless
+> DataTable-override mods.
 
 ---
 
